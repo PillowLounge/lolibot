@@ -1,7 +1,7 @@
 # Persistent storage
 
-debug = False
-validate_params = False
+debug    = False
+validate = True
 ################################################################################
 
 class StructBase(object):
@@ -26,23 +26,35 @@ class Sqlite3_adapter(object):
 	'''The interface for creating and manipulating a struct of data for easy
 	storage to disc'''
 
-	def __init__(self):
+	def __init__(self, name):
+		self.name   = name
 		self.fields = []
 
 	def add(self, field, metadata):
-		affinity = if 'type' in metadata (
+		affinity = (
 			' integer' if metadata['type'] == int   else \
 			' real'    if metadata['type'] == float else \
-			' text'    if metadata['type'] == str   else '') else ''
+			' text'    if metadata['type'] == str   else ''
+		) if 'type' in metadata else ''
 		self.fields.append((field, affinity))
 
 	def done(self):
-		self.sql_create = self.create_table(fields)
+		self.sql_create = self.sql_create_table(self.name, self.fields)
 
-	def create_table(name, fields):
-		return 'CREATE TABLE {} ({})'.format(name,
-			', '.join(key + affinity for key, affinity in fields)
-		)
+	def create_updater(self, key):
+		sql = sql_insert(self.name +'_'+ key, '??')
+		def updater(obj, values):
+			obj._sqlcursor_.execute(sql, values)
+		return updater
+
+	@staticmethod
+	def sql_insert(table, values):
+		return 'INSERT INTO {} VALUES ({})'.format(table, ', '.join(values))
+
+	@staticmethod
+	def sql_create_table(table, fields):
+		return 'CREATE TABLE {} ({})'.format(table,
+			', '.join(key + affinity for key, affinity in fields))
 
 ################################################################################
 
@@ -79,21 +91,36 @@ class Persistent(Serializable):
 	default = Sqlite3_adapter
 
 	def _metanew_(cls, name, bases, attrs):
-
-		if validate_params:
-			assert type(cls) is type
-			assert type(name) is str
-			assert type(bases) in (tuple, list)
-			assert type(attrs) is dict
+		if validate: Persistent.validate_params(cls, name, bases, attrs)
 
 		if 'persistent_storage' not in attrs:
 			attrs['persistent_storage'] = Persistent.default
-		adapter = attrs['persistent_storage']()
+		if validate: Persistent.validate_adapter()
+		adapter = attrs['persistent_storage'](name) #instantiation
 
 		if '_properties_' not in attrs:
 			attrs['_properties_'] = {}
-		for key,val in attrs['_properties_']: adapter.add(key, val)
+		for key,val in attrs['_properties_']:
+			adapter.add(key, val)
+
+			val['set'].append(adapter.eventlog_setter)
 		adapter.done()
+
+
+
+	@staticmethod
+	def validate_params(cls, name, bases, attrs):
+		assert type(cls)   is type
+		assert type(name)  is str
+		assert type(bases) in (tuple, list)
+		assert type(attrs) is dict
+
+	@staticmethod
+	def validate_adapter(adapt_cls):
+		adapt_cls = attrs['persistent_storage']
+		assert type(adapt_cls) is type
+		assert 'add'  in adapt_cls
+		assert 'done' in adapt_cls
 
 ################################################################################
 
