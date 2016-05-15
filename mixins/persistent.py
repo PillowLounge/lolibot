@@ -1,6 +1,7 @@
 # Persistent storage
 
 debug = False
+validate_params = False
 ################################################################################
 
 class StructBase(object):
@@ -17,25 +18,31 @@ def struct(name, slots):
 
 def metaclassmethod(fcn):
 	return classmethod(fcn)
+
 ################################################################################
 # Adapter for sqlite3
 
-def create_table_for(namedtuple):
-	return 'CREATE TABLE {} ({})'.format(
-		namedtuple.__class__.__name__,
-		', '.join(key + typ for key,typ in zip(
-			(f for f in namedtuple.__class__._fields),
-			(' integer' if val.__class__ == int   else \
-			' real'     if val.__class__ == float else \
-			' text'     if val.__class__ == str   else ''
-			for val in namedtuple)
-		))
-	)
+class Sqlite3_adapter(object):
+	'''The interface for creating and manipulating a struct of data for easy
+	storage to disc'''
 
-def sqlite3_adapter():
-	'''return an object with the interface for creating and manipulating a
-	struct of data'''
-	return object()
+	def __init__(self):
+		self.fields = []
+
+	def add(self, field, metadata):
+		affinity = if 'type' in metadata (
+			' integer' if metadata['type'] == int   else \
+			' real'    if metadata['type'] == float else \
+			' text'    if metadata['type'] == str   else '') else ''
+		self.fields.append((field, affinity))
+
+	def done(self):
+		self.sql_create = self.create_table(fields)
+
+	def create_table(name, fields):
+		return 'CREATE TABLE {} ({})'.format(name,
+			', '.join(key + affinity for key, affinity in fields)
+		)
 
 ################################################################################
 
@@ -69,9 +76,9 @@ class Persistent(Serializable):
 	TODO: create properties that listen for changes to data
 	TODO: specify interface standars for adapting storage libraries'''
 
-	default = sqlite3_adapter
+	default = Sqlite3_adapter
 
-	def _metanew_(cls, name, bases, attrs, **kwargs):
+	def _metanew_(cls, name, bases, attrs):
 
 		if validate_params:
 			assert type(cls) is type
@@ -85,8 +92,7 @@ class Persistent(Serializable):
 
 		if '_properties_' not in attrs:
 			attrs['_properties_'] = {}
-		for key,val in attrs['_properties_']:
-			adapter.add(attrs['_properties_'])
+		for key,val in attrs['_properties_']: adapter.add(key, val)
 		adapter.done()
 
 ################################################################################
@@ -115,7 +121,7 @@ class Message(Layered, Persistent, Subscribable, object):
 		'content' : {'type': str},
 		'history' : {'type': Subscribable.history}
 	}
-	persistent_storage = sqlite3
+	persistent_storage = Sqlite3_adapter
 
 	def __cmp__(self, other): return cmp(self.datetime, other.datetime)
 
@@ -128,6 +134,7 @@ def dynamic_property(fcn):
 	return property(fcn)
 
 ################################################################################
+
 conn = sqlite3.connect(':memory:')
 
 c = conn.cursor()
