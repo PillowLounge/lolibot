@@ -1,7 +1,6 @@
 # Persistent storage
 
-import sqlite3
-
+debug = False
 ################################################################################
 
 class StructBase(object):
@@ -16,10 +15,27 @@ def struct(name, slots):
 		'__init__' : _init_
 	})
 
-################################################################################
-
 def metaclassmethod(fcn):
 	return classmethod(fcn)
+################################################################################
+# Adapter for sqlite3
+
+def create_table_for(namedtuple):
+	return 'CREATE TABLE {} ({})'.format(
+		namedtuple.__class__.__name__,
+		', '.join(key + typ for key,typ in zip(
+			(f for f in namedtuple.__class__._fields),
+			(' integer' if val.__class__ == int   else \
+			' real'     if val.__class__ == float else \
+			' text'     if val.__class__ == str   else ''
+			for val in namedtuple)
+		))
+	)
+
+def sqlite3_adapter():
+	'''return an object with the interface for creating and manipulating a
+	struct of data'''
+	return object()
 
 ################################################################################
 
@@ -43,35 +59,35 @@ class Serializable(metaclass=mixin):
 	'''Provides the ability to serialize the object's state'''
 	pass
 
-def create_table_for(namedtuple):
-	return 'CREATE TABLE {} ({})'.format(
-		namedtuple.__class__.__name__,
-		', '.join(key + typ for key,typ in zip(
-			(f for f in namedtuple.__class__._fields),
-			(' integer' if val.__class__ == int   else \
-			' real'     if val.__class__ == float else \
-			' text'     if val.__class__ == str   else ''
-			for val in namedtuple)
-		))
-	)
+################################################################################
+# MIXIN: [Persistent]
 
 class Persistent(Serializable):
 	'''Allows the object state to be initialized from, stored and synchronized
-	to disk using sqlite3, shelve or any custom format
+	to disk using sqlite3, shelve or any custom framework
 	TODO: create an __init__ for storing data to disk on instantiation
 	TODO: create properties that listen for changes to data
-	TODO: '''
+	TODO: specify interface standars for adapting storage libraries'''
 
-	default = 'sqlite3'
+	default = sqlite3_adapter
 
-	def _metanew_(cls, name, bases, attrs):
-		if not 'persistent_storage' in attrs:
-			import sqlite3
-			attrs['persistent_storage'] = sqlite3
-		if '_properties_' in attrs:
-			for key,val in attrs['_properties_']:
-				pass
-			sql = create_table_for(namedtuple)
+	def _metanew_(cls, name, bases, attrs, **kwargs):
+
+		if validate_params:
+			assert type(cls) is type
+			assert type(name) is str
+			assert type(bases) in (tuple, list)
+			assert type(attrs) is dict
+
+		if 'persistent_storage' not in attrs:
+			attrs['persistent_storage'] = Persistent.default
+		adapter = attrs['persistent_storage']()
+
+		if '_properties_' not in attrs:
+			attrs['_properties_'] = {}
+		for key,val in attrs['_properties_']:
+			adapter.add(attrs['_properties_'])
+		adapter.done()
 
 ################################################################################
 
