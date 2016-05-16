@@ -31,30 +31,39 @@ class Sqlite3_adapter(object):
 		self.fields = []
 
 	def add(self, field, metadata):
-		affinity = (
-			' integer' if metadata['type'] == int   else \
-			' real'    if metadata['type'] == float else \
-			' text'    if metadata['type'] == str   else ''
-		) if 'type' in metadata else ''
+		field_type = trykey(metadata, 'type')
+		affinity =
+			' integer' if field_type == int   else \
+			' real'    if field_type == float else \
+			' text'    if field_type == str   else ''
 		self.fields.append((field, affinity))
 
 	def done(self):
-		self.sql_create = self.sql_create_table(self.name, self.fields)
+		self.sql_create = sql_create_table(self.name, self.fields)
 
 	def create_updater(self, key):
 		sql = sql_insert(self.name +'_'+ key, '??')
 		def updater(obj, values):
+			#TODO: generate proper update handler on first usage and replace
+			# itself with proper handler
 			obj._sqlcursor_.execute(sql, values)
 		return updater
+
+s
+
+	@staticmethod
+	def sql_create_table(table, fields):
+		return 'CREATE TABLE {} ({})'.format(table,
+			', '.join(key + affinity for key, affinity in fields))
 
 	@staticmethod
 	def sql_insert(table, values):
 		return 'INSERT INTO {} VALUES ({})'.format(table, ', '.join(values))
 
 	@staticmethod
-	def sql_create_table(table, fields):
-		return 'CREATE TABLE {} ({})'.format(table,
-			', '.join(key + affinity for key, affinity in fields))
+	def sql_update(table, key, value, predicate):
+		return 'UPDATE {} SET {}={} WHERE {}'.format(
+			table, key, value, predicate)
 
 ################################################################################
 

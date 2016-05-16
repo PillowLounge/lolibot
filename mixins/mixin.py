@@ -17,8 +17,13 @@ class mixin(type):
 
 	@staticmethod
 	def tryattr(obj, attrname):
-		try: return getattr(attrname)
+		try: return getattr(obj, attrname)
 		except AttributeError: return
+
+	@staticmethod
+	def trykey(obj, attrname):
+		try: return obj[attrname]
+		except KeyError: return
 
 	def __new__(cls, name, bases, attrs):
 		mixins, bases = split_on(bases,
