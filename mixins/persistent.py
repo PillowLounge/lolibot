@@ -1,5 +1,5 @@
 # Persistent storage
-from mixin import mixin, tryattr, trykey
+from mixin import mixin, tryattr, trykey, replace
 
 
 debug    = False
@@ -34,6 +34,9 @@ class Sqlite3_adapter(object):
 		self.name   = name
 		self.fields = []
 		self.cursor = None
+		self.select = sql_select()
+		self.table_name = None
+		self.primary = None
 
 	def add(self, field, metadata):
 		field_type = trykey(metadata, 'type')
@@ -44,6 +47,7 @@ class Sqlite3_adapter(object):
 		self.fields.append((field, affinity))
 
 	def done(self):
+		#TODO: resolve reference to a proper sql_create_table
 		self.sql_create = sql_create_table(self.name, self.fields)
 
 	def create_updater(self, key):
@@ -54,12 +58,39 @@ class Sqlite3_adapter(object):
 			obj._sqlcursor_.execute(sql, values)
 		return updater
 
-	def append(self, object):
-		'''synchronize this object to database'''
+	def append(self, obj):
+		'''synchronize given object to database. If key collides, update'''
+		if validate: assert type(obj) is self.type
+		self[obj.id] = obj
 
-	def __getitem__(self, key):
-		'''fetch an item from storage with the given id'''
-		self.cursor.execute(sql_select())
+	def __getitem__(self, _key):
+		'''fetch an item from disc with the given id
+		RAISES: KeyError if key does not exist'''
+
+		if validate: assert type(self) is Sqlite3_adapter
+		sql = Sqlite3_adapter.sql_select(self.table_name, self.primary, '?')
+		@replace(self, '__getitem__')
+		def getitem(key):
+			#TODO: raise TypeError if key is not the right type
+			result = self.cursor.execute(sql, (str(key),))
+			if not result: raise KeyError
+			return result
+		return getitem(_key)
+
+	def __setitem__(self, _key, _value):
+		'''save or update an item on disc'''
+
+		if validate: assert type(self) is Sqlite3_adapter
+		sql_upd = Sqlite3_adapter.sql_update(
+			self.table_name, self.primary, '?', self.primary +'=?')
+		sql_ins = Sqlite3_adapter.sql_insert(self.table_name, '?')
+		@replace(self, '__setitem__')
+		def setitem(key, value):
+			c = self.cursor
+			c.execute(sql_upd, key, value)
+			if c.rowcount <= 0: c.execute(sql_ins, key, value)
+			return key
+		return setitem(_key, _value)
 
 	@staticmethod
 	def sql_create_table(table, fields):
