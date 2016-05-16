@@ -1,4 +1,6 @@
 # Persistent storage
+from mixin import mixin, tryattr, trykey
+
 
 debug    = False
 validate = True
@@ -24,11 +26,14 @@ def metaclassmethod(fcn):
 
 class Sqlite3_adapter(object):
 	'''The interface for creating and manipulating a struct of data for easy
-	storage to disc'''
+	storage to disc
+	INSTANCES: One for every type stored to disc'''
 
-	def __init__(self, name):
+	def __init__(self, cls):
+		self.type   = cls
 		self.name   = name
 		self.fields = []
+		self.cursor = None
 
 	def add(self, field, metadata):
 		field_type = trykey(metadata, 'type')
@@ -49,7 +54,12 @@ class Sqlite3_adapter(object):
 			obj._sqlcursor_.execute(sql, values)
 		return updater
 
-s
+	def append(self, object):
+		'''synchronize this object to database'''
+
+	def __getitem__(self, key):
+		'''fetch an item from storage with the given id'''
+		self.cursor.execute(sql_select())
 
 	@staticmethod
 	def sql_create_table(table, fields):
@@ -64,6 +74,11 @@ s
 	def sql_update(table, key, value, predicate):
 		return 'UPDATE {} SET {}={} WHERE {}'.format(
 			table, key, value, predicate)
+
+	@staticmethod
+	def sql_select(table, key):
+		return 'SELECT * FROM {} WHERE id={}'.format(table, key)
+
 
 ################################################################################
 
@@ -92,7 +107,8 @@ class Serializable(metaclass=mixin):
 
 class Persistent(Serializable):
 	'''Allows the object state to be initialized from, stored and synchronized
-	to disk using sqlite3, shelve or any custom framework
+	to disk using sqlite3, shelve or any custom framework.
+	INSTANCES: None! It is used as a namespace only.
 	TODO: create an __init__ for storing data to disk on instantiation
 	TODO: create properties that listen for changes to data
 	TODO: specify interface standars for adapting storage libraries'''
@@ -102,20 +118,16 @@ class Persistent(Serializable):
 	def _metanew_(cls, name, bases, attrs):
 		if validate: Persistent.validate_params(cls, name, bases, attrs)
 
-		if 'persistent_storage' not in attrs:
-			attrs['persistent_storage'] = Persistent.default
-		if validate: Persistent.validate_adapter()
-		adapter = attrs['persistent_storage'](name) #instantiation
+		adapter = trykey(attrs, 'persistent_storage')
+		if validate: adapter = Persistent.validate_adapter(adapter)
+		adapter = adapter(name) #instantiation
 
 		if '_properties_' not in attrs:
 			attrs['_properties_'] = {}
 		for key,val in attrs['_properties_']:
 			adapter.add(key, val)
-
 			val['set'].append(adapter.eventlog_setter)
 		adapter.done()
-
-
 
 	@staticmethod
 	def validate_params(cls, name, bases, attrs):
@@ -126,10 +138,14 @@ class Persistent(Serializable):
 
 	@staticmethod
 	def validate_adapter(adapt_cls):
+		if adapt_cls is None:
+			#TODO: issue notice
+			adapt_cls = Persistent.default
 		adapt_cls = attrs['persistent_storage']
 		assert type(adapt_cls) is type
 		assert 'add'  in adapt_cls
 		assert 'done' in adapt_cls
+		return adapt_cls
 
 ################################################################################
 
@@ -149,12 +165,14 @@ class Subscribable(metaclass=mixin):
 class User(Layered, Persistent, Subscribable, object): pass
 
 class Message(Layered, Persistent, Subscribable, object):
+	'''An instance of this class can be used as a manager where the underlying
+	object state is a dynamic context operated on or as one instance per state'''
 
 	_properties_ = {
-		'id'      : {'type': int,  'tags': ('static', 'unique')},
+		'id'      : {'type': int,  'tags': ('static', 'id')},
 		'author'  : {'type': User, 'tags': ('static')},
 		'datetime': {'type': int,  'tags': ('static')},
-		'content' : {'type': str},
+		'content' : {'type': str,  'tags': ('main')},
 		'history' : {'type': Subscribable.history}
 	}
 	persistent_storage = Sqlite3_adapter
