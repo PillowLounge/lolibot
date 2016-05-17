@@ -41,7 +41,7 @@ class Sqlite3_adapter(object):
 
 	def add(self, field, metadata):
 		field_type = trykey(metadata, 'type')
-		affinity =
+		affinity = \
 			' integer' if field_type == int   else \
 			' real'    if field_type == float else \
 			' text'    if field_type == str   else ''
@@ -211,7 +211,7 @@ class Message(Layered, Persistent, Subscribable, object):
 		'author'  : {'type': User, 'tags': ('static',)},
 		'datetime': {'type': int,  'tags': ('static',)},
 		'content' : {'type': str,  'tags': ('main',)},
-		'history' : {'type': Subscribable.history}
+		'history' : {'type': 'history'}
 	}
 	persistent_storage = Sqlite3_adapter
 
@@ -227,10 +227,6 @@ def dynamic_property(fcn):
 
 ################################################################################
 
-conn = sqlite3.connect(':memory:')
-
-c = conn.cursor()
-
 def eventlog_for(namedtuple):
 
 	def handler():
@@ -245,4 +241,7 @@ def eventlog_for(namedtuple):
 			))
 		)
 
-c.execute(sql)
+if __name__ == '__main__':
+	print(dir(Message))
+	print(Message.mixins)
+	print(Message.default)
