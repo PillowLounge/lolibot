@@ -81,8 +81,9 @@ class Sqlite3_adapter(object):
 		'''save or update an item on disc'''
 
 		if validate: assert type(self) is Sqlite3_adapter
+		fields = {}
 		sql_upd = Sqlite3_adapter.sql_update(
-			self.table_name, self.primary, '?', self.primary +'=?')
+			self.table_name, fields, self.primary +'=?')
 		sql_ins = Sqlite3_adapter.sql_insert(self.table_name, '?')
 		@replace(self, '__setitem__')
 		def setitem(key, value):
@@ -102,9 +103,9 @@ class Sqlite3_adapter(object):
 		return 'INSERT INTO {} VALUES ({})'.format(table, ', '.join(values))
 
 	@staticmethod
-	def sql_update(table, key, value, predicate):
-		return 'UPDATE {} SET {}={} WHERE {}'.format(
-			table, key, value, predicate)
+	def sql_update(table, assign, predicate):
+		return 'UPDATE {} SET {} WHERE {}'.format(table,
+			', '.join(key +'='+ val for key,val in assign), predicate)
 
 	@staticmethod
 	def sql_select(table, key):

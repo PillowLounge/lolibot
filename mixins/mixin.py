@@ -19,9 +19,10 @@ def trykey(obj, attrname):
 	try: return obj[attrname]
 	except KeyError: return
 
-def replace(obj, attr):
+def replace(obj, attr=None):
 	def decorator(fcn):
 		def wrapper(*args, **kwargs):
+			if attr is None: attr = fcn.__name__
 			setattr(obj, attr, fcn)
 			return fcn(*args, **kwargs)
 		return wrapper
