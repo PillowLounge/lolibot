@@ -2,8 +2,8 @@
 from mixin import mixin, tryattr, trykey, replace
 
 
-debug    = False
-validate = True
+log_debug = True
+validate  = True
 ################################################################################
 
 class StructBase(object):
@@ -29,12 +29,13 @@ class Sqlite3_adapter(object):
 	storage to disc
 	INSTANCES: One for every type stored to disc'''
 
-	def __init__(self, cls):
+	def __init__(self, cls, ignore=()):
 		self.type   = cls
 		self.name   = name
-		self.fields = []
+		self.slots  = cls.__slots__ #TODO: account for __dict__ use
+		#TODO: account for '?' in slot names
+		#TODO: use the ignore var
 		self.cursor = None
-		self.select = sql_select()
 		self.table_name = None
 		self.primary = None
 
@@ -74,23 +75,28 @@ class Sqlite3_adapter(object):
 			#TODO: raise TypeError if key is not the right type
 			result = self.cursor.execute(sql, (str(key),))
 			if not result: raise KeyError
-			return result
+			return self.type(**result)
 		return getitem(_key)
 
 	def __setitem__(self, _key, _value):
-		'''save or update an item on disc'''
+		'''save or update an item on disc. Key represents the primary key'''
 
 		if validate: assert type(self) is Sqlite3_adapter
-		fields = {}
+		slots = {}
+		for s in self.slots: slots[s] = '?'
 		sql_upd = Sqlite3_adapter.sql_update(
-			self.table_name, fields, self.primary +'=?')
-		sql_ins = Sqlite3_adapter.sql_insert(self.table_name, '?')
+			self.table_name, slots, self.primary +'=?')
+		sql_ins = Sqlite3_adapter.sql_insert(self.table_name, '?'*len(slots))
 		@replace(self, '__setitem__')
 		def setitem(key, value):
 			c = self.cursor
-			c.execute(sql_upd, key, value)
-			if c.rowcount <= 0: c.execute(sql_ins, key, value)
-			return key
+			value = value._state_()
+			if log_debug: print(sql_upd, value)
+			c.execute(sql_upd, (value, key))
+			if c.rowcount <= 0:
+				if log_debug: print(sql_ins, value)
+				c.execute(sql_ins, (value,))
+			c.commit()
 		return setitem(_key, _value)
 
 	@staticmethod
@@ -108,8 +114,8 @@ class Sqlite3_adapter(object):
 			', '.join(key +'='+ val for key,val in assign), predicate)
 
 	@staticmethod
-	def sql_select(table, key):
-		return 'SELECT * FROM {} WHERE id={}'.format(table, key)
+	def sql_select(table, key, predicate):
+		return 'SELECT * FROM {} WHERE {}'.format(table, key)
 
 
 ################################################################################
@@ -202,9 +208,9 @@ class Message(Layered, Persistent, Subscribable, object):
 
 	_properties_ = {
 		'id'      : {'type': int,  'tags': ('static', 'id')},
-		'author'  : {'type': User, 'tags': ('static')},
-		'datetime': {'type': int,  'tags': ('static')},
-		'content' : {'type': str,  'tags': ('main')},
+		'author'  : {'type': User, 'tags': ('static',)},
+		'datetime': {'type': int,  'tags': ('static',)},
+		'content' : {'type': str,  'tags': ('main',)},
 		'history' : {'type': Subscribable.history}
 	}
 	persistent_storage = Sqlite3_adapter
