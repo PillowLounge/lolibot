@@ -138,8 +138,8 @@ async def savetobase(msg, content):
         (msg.id, msg.author.id, msg.timestamp, msg.content))
 
 @handler
-async def iscipher(msg, content):
-    if msg.author.id == '90942722231275520' and msg.content[0:6] == '```py\n':
+async def isowner(msg, content):
+    if msg.author.id == botOwner and msg.content[0:6] == '```py\n':
         thiscode = msg.content[6:-3]
         try:
             print(thiscode)
@@ -156,6 +156,11 @@ def run():
     global c
     #conn = sqlite3.connect('discordlog.db')
     #c = conn.cursor()
+    global botOwner
+    if os.path.isfile('botOwner.txt'):
+        botOwner = open('botOwner.txt', 'r').read()
+    else:
+        botOwner = '90942722231275520'
     token = open('token.txt', 'r').read()
     dc.run(token)
     for f in logfiles:
