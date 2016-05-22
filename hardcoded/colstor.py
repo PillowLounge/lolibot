@@ -1,8 +1,10 @@
 ### Column oriented Storage ###
 
+import math
 import os
 
 standard_bytearray_attr = 'bytes'
+readint = lambda f,n: int.from_bytes(f.read(n), byteorder='little')
 
 class Table(object):
 
@@ -34,31 +36,64 @@ class Table(object):
     def optimize():
         pass
 
-class Column(object):
+class ColumnInt(object):
 
     def __init__(self, name, binary=False, path=''):
         self.name    = name
-        self.path    = path
+        self.path    = path + name
         self.file    = None
-        self.opened  = False
         self.binary  = binary
         self.preproc = to_binary if binary else str
         self.sorted  = True
-        self.boundU  = 0 # upper bound (integers only)
-        self.boundL  = 0 # lower bound (integers only)
+        self.unique  = True
+        self.lbound  = None # lower bound
+        self.ubound  = None # upper bound
 
-    def open(self):
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        self.file = open(self.path + self.name,
-        'a'+('b' if self.binary else ''))
-        self.opened = True
+    def __iter__(self):
+        assert self.open('r')
+        f = self.file
+        assert f.seekable()
+        headersize = readint(f,2)
+        f.seek(headersize, os.SEEK_CUR)
+        #TODO: refactor into a separate decode method
+        # get the log_2 of upper bound to get maximum bit size
+        maxbits = math.frexp(self.ubound - self.lbound)[1] \
+            if self.lbound is not None and self.ubound is not None \
+            else 64
+        maxbytes = math.ceil(maxbits/8)
+        uniq   = self.unique
+        sortd  = self.sorted
+        b = f.read()
+        repeats = 0
+        if sortd: yield readint(f, maxbytes)
+        while True:
+            if b[0] & b'\x01': pass
+            f.read()
+            yield i
+
+    def __getitem__(self, key):
+        assert type(key) is int and key >= 0
+        assert self.open()
+        current = 0
+        for row in self:
+            if current < key: continue
+
+    @property
+    def closed(self):
+        f = self.file
+        return not f or f.closed
+
+    def open(self, mode='a'):
+        if self.closed or mode not in self.file.mode:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            self.file = open(self.path, mode +('b' if self.binary else ''))
+        return self
 
     def close(self):
         if self.file: self.file.close()
-        self.opened = False
 
     def append(self, data):
-        if not self.opened: self.open()
+        self.open()
         data = self.preproc(data)
         f = self.file
         f.write(data)
@@ -76,6 +111,10 @@ class Column(object):
 
     def readheader(self, readable):
         return {'iterator':()}
+
+    @staticmethod
+    def readRow(f, index):
+        f.read()
 
 def to_binary(data):
     try:
