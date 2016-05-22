@@ -128,21 +128,21 @@ async def readfromfile(msg, content):
         +': '+ msgb.decode('utf-8'))
 
 #@handler
-async def savetobase(msg, content):
-    channel = msg.channel
-    if channel not in tabledefined:
-        c.execute('''CREATE TABLE IF NOT EXISTS chn%s (
-            id INTEGER PRIMARY KEY,
-            author INTEGER,
-            datetime INTEGER,
-            content TEXT ) WITHOUT ROWID''' % channel.id)
-        tabledefined.append(channel)
-    c.execute('INSERT INTO chn%s VALUES (?,?,?,?)' % channel.id,
-        (msg.id, msg.author.id, msg.timestamp, msg.content))
+# async def savetobase(msg, content):
+#     channel = msg.channel
+#     if channel not in tabledefined:
+#         c.execute('''CREATE TABLE IF NOT EXISTS chn%s (
+#             id INTEGER PRIMARY KEY,
+#             author INTEGER,
+#             datetime INTEGER,
+#             content TEXT ) WITHOUT ROWID''' % channel.id)
+#         tabledefined.append(channel)
+#     c.execute('INSERT INTO chn%s VALUES (?,?,?,?)' % channel.id,
+#         (msg.id, msg.author.id, msg.timestamp, msg.content))
 
 @handler
-async def iscipher(msg, content):
-    if msg.author.id == '90942722231275520' and msg.content[0:6] == '```py\n':
+async def isowner(msg, content):
+    if msg.author.id == botOwner and msg.content[0:6] == '```py\n':
         thiscode = msg.content[6:-3].replace('\t','    ')
         thiscode = '\n    '.join(
             ['async def _exec_(msg, channel, server):']+ thiscode.split('\n'))
@@ -161,12 +161,17 @@ async def iscipher(msg, content):
             print(err)
             await dc.send_message(msg.channel, str(err))
 
-c = None
+#c = None
 
 def run():
-    global c
+    #global c
     #conn = sqlite3.connect('discordlog.db')
     #c = conn.cursor()
+    global botOwner
+    if os.path.isfile('botOwner.txt'):
+        botOwner = open('botOwner.txt', 'r').read()
+    else:
+        botOwner = '90942722231275520'
     token = open('token.txt', 'r').read()
     dc.run(token)
     for f in logfiles:

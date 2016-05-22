@@ -1,0 +1,5 @@
+*.txt
+logs/*
+*.pyc
+*.db
+*.db-journal
