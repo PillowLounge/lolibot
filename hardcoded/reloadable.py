@@ -4,7 +4,10 @@ import sqlite3
 import logging
 
 logfiles = {}
-exe_namespace = {'logfiles': logfiles}
+exe_namespace = {
+    'discord':  discord,
+    'logfiles': logfiles
+}
 print(discord.__version__)
 
 dc = discord.Client()
@@ -140,10 +143,18 @@ async def savetobase(msg, content):
 @handler
 async def iscipher(msg, content):
     if msg.author.id == '90942722231275520' and msg.content[0:6] == '```py\n':
-        thiscode = msg.content[6:-3]
+        thiscode = msg.content[6:-3].replace('\t','    ')
+        thiscode = '\n    '.join(
+            ['async def _exec_(msg, channel, server):']+ thiscode.split('\n'))
         try:
             print(thiscode)
-            exec(thiscode, exe_namespace)
+            localvars = {
+                'msg': msg,
+                'channel': msg.channel,
+                'server': msg.server
+            }
+            exec(thiscode, exe_namespace, localvars)
+            await localvars['_exec_'](msg, msg.channel, msg.server)
             log = open('exec_log.py', 'a')
             log.write(thiscode +'\n')
         except Exception as err:
