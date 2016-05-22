@@ -6,32 +6,28 @@ import os
 standard_bytearray_attr = 'bytes'
 readint = lambda f,n: int.from_bytes(f.read(n), byteorder='little')
 
+def add(iterable, addend):
+        yield from addend + i for i in iterable
+
+
+
 class Table(object):
 
     def __init__(self, tblname, *columns, path='../logs/'):
-        self.tblname  = tblname
-        self.colnames = []
-        for colname in columns:
-            if type(colname) in (tuple, list):
-                for colname2 in colname:
-                    self.colnames.append(colname2)
-            else: self.colnames.append(colname)
-        self.path   = path
-        self.opened = False
-        self.files  = []
+        if columns and type(columns[0]) is not str: columns = columns[0]
+        self.tblname = tblname
+        self.columns = list(ColumnInt(name, binary=True) for name in colname)
+        #TODO: make columns more descriptive than just names
+        self.path    = path
+        self.files   = []
 
-    def open(self):
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        for col in self.colnames:
-            self.files.append(open(self.path + self.tblname + col, 'ab'))
-        self.opened = True
+    def open(self, mode='a'):
+        for col in self.columns: col.open(mode)
 
     def append(self, *data):
-        if not self.opened: self.open()
-        for i in range(len(self.files)):
-            f = self.files[i]
-            f.write(binary(data[i]))
-            f.flush()
+        self.open()
+        for i in range(len(self.columns)):
+            self.columns[i].append(data[i])
 
     def optimize():
         pass
@@ -57,19 +53,20 @@ class ColumnInt(object):
         f.seek(headersize, os.SEEK_CUR)
         #TODO: refactor into a separate decode method
         # get the log_2 of upper bound to get maximum bit size
-        maxbits = math.frexp(self.ubound - self.lbound)[1] \
-            if self.lbound is not None and self.ubound is not None \
-            else 64
-        maxbytes = math.ceil(maxbits/8)
-        uniq   = self.unique
-        sortd  = self.sorted
-        b = f.read()
-        repeats = 0
-        if sortd: yield readint(f, maxbytes)
-        while True:
-            if b[0] & b'\x01': pass
-            f.read()
-            yield i
+        # maxbits = math.frexp(self.ubound - self.lbound)[1] \
+        #     if self.lbound is not None and self.ubound is not None \
+        #     else 64
+        # maxbytes = math.ceil(maxbits/8)
+        # uniq   = self.unique
+        # sortd  = self.sorted
+        # b = f.read()
+        # repeats = 0
+        # if sortd: yield readint(f, maxbytes)
+        # while True:
+        #     if b[0] & b'\x01': pass
+        #     f.read()
+        #     yield i
+        f.read(8)
 
     def __getitem__(self, key):
         assert type(key) is int and key >= 0

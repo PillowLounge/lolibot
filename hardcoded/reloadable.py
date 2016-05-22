@@ -93,7 +93,7 @@ async def savetofile(msg, content):
         # double nulls + num of embeds (max 255)
         log.write(b'\x00'+ len(msg.embeds).to_bytes(1, byteorder='little'))
         for emb in msg.embeds:
-            log.write(emb.encode('utf-8').replace(b'\x00', b'') +b'\x00')
+            log.write(str(emb).encode('utf-8').replace(b'\x00', b'') +b'\x00')
     log.flush()
 
 @handler
