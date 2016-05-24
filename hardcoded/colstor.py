@@ -2,14 +2,36 @@
 
 import math
 import os
+from itertools import islice
 
 standard_bytearray_attr = 'bytes'
 readint = lambda f,n: int.from_bytes(f.read(n), byteorder='little')
 
 def add(iterable, addend):
-        yield from addend + i for i in iterable
+    yield from addend + i for i in iterable
+
+def split_items(iterable, index):
+    yield from (i[:index], i[index:]) for i in iterable
+
+def mux(*parts): #TODO: fix issue with not terminating
+    n = len(parts)
+    z = zip(*parts)
+    #yield from (islice(z, n) for i in repeat())
+    while True: yield islice(z, n) # islice will never throw StopIterarion
+
+map(b''.join, )
+
+def demux(split, source):
+    return (split(i) for i in source)
 
 
+def multiplex_bytestream(*pipes):
+    n = len(pipes)
+    z = zip(*pipes)
+    while True: yield b''.join(islice(z, n))
+
+def join_items(iterable1, iterable2):
+    yield from i+j for i,j in zip(iterable1, iterable2)
 
 class Table(object):
 
@@ -112,6 +134,16 @@ class ColumnInt(object):
     @staticmethod
     def readRow(f, index):
         f.read()
+
+class Element(object):
+    '''One of these classes for each column/row'''
+
+    def __init__(self, address):
+        self.adr = address
+
+    def __int__(self): pass
+        #TODO: decode bytes
+        super().parent
 
 def to_binary(data):
     try:
