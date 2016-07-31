@@ -1,8 +1,11 @@
 import os
 import discord
 import sqlite3
+import shelve
 import logging
+from context import Context
 
+cmdprefix = "'"
 logfiles = {}
 exe_namespace = {
     'discord':  discord,
@@ -149,9 +152,9 @@ async def isowner(msg, content):
         try:
             print(thiscode)
             localvars = {
-                'msg': msg,
+                'msg':     msg,
                 'channel': msg.channel,
-                'server': msg.server
+                'server':  msg.server
             }
             exec(thiscode, exe_namespace, localvars)
             await localvars['_exec_'](msg, msg.channel, msg.server)
@@ -161,7 +164,45 @@ async def isowner(msg, content):
             print(err)
             await dc.send_message(msg.channel, str(err))
 
+@handler
+async def accumulate(msg, content):
+
+msgcontext = Context()
+@handler
+async def activity(msg, content):
+    if content != cmdprefix + 'activity': return
+    #TODO: concat string only when prefix is changed
+    counts = {key:value for (channel.id, [0,0,0]) in channels}
+    for m in messages.period(days=30) if m.author == msg.author:
+        c = counts[m.channel.id]
+        c[0] += 1
+        c[1] += wordcount(m.content)
+        c[2] += len(m.embeds)
+    totalcount = 0
+    for c in channels if counts[c.id][0] > 0:
+        totalcount += counts[c.id][0]
+
 #c = None
+
+shelve_streamlog = shelve.open('streamlog.pickle', protocol=4)
+shelve_messages  = shelve.open('stream_messages_2016-07.pickle', protocol=4)
+shelve_users     = shelve.open('users.pickle', protocol=4)
+
+def validate_streamlog(streamlog):
+    index = streamlog['index']
+
+
+def wordprmsg(msgs):
+    length = len(msgs)
+    wcount = 0
+    wlen   = 0
+    with WordCounter() as ws: ws += msgs
+    return ws
+    for m in msgs:
+        q, l = wordstats(m)
+        wcount += q
+        wlen   += l
+    return (wcount/length, wlen/length) # num of words/msg and average word length
 
 def run():
     #global c

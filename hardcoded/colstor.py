@@ -24,7 +24,6 @@ map(b''.join, )
 def demux(split, source):
     return (split(i) for i in source)
 
-
 def multiplex_bytestream(*pipes):
     n = len(pipes)
     z = zip(*pipes)

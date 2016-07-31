@@ -1,11 +1,39 @@
 # Persistent storage
-from mixin import mixin, tryattr, trykey, replace
 
+# 2016-06-04 moving away from normal "class Foo():" notation
+# and we're making a class factory instead
+
+# conventions:
+# MyClass.none returns a null-object
+# mixins: Archive / Identify / Persist
+# Identifiable objects have:
+# .id / .memid / .serverid / .clientid / .localid / .remoteid / .uuid (128b)
+# provides integer, string or bytes, unique to what the instance represents
+# Archiving objects have:
+# .timelast(action) / .history
+
+import shelve
+from mixin import mixin, tryattr, trykey, replace
+import datetime
+import bisect
+from dateutil.rrule import rrule, MINUTELY
 
 log_debug = True
 validate  = True
+
 ################################################################################
 
+class ClassFactory(object):
+
+	def __init__(self, name, doc):
+		pass
+
+	def addProperty(self, name, **kwargs):
+		self.properties[name] = kwargs
+
+	def addMixin(self, mixin): pass
+
+################################################################################
 class StructBase(object):
 	pass
 
@@ -117,6 +145,38 @@ class Sqlite3_adapter(object):
 	def sql_select(table, key, predicate):
 		return 'SELECT * FROM {} WHERE {}'.format(table, key)
 
+################################################################################
+# Adapter for shelve
+
+# concerns:
+# delegate stored elements to separate files deterministicly
+# pick a naming scheme for files
+# store and retrieve content
+
+def shelve_adapter(cls):
+
+	def filenamescheme(self):
+		#TODO: assert Archiving
+		date = self.timelast('created').date()
+		return str(date) + filename + '.shelve'
+
+	# callable from both class and instance
+	def persistent_resource(self, format='shelve'):
+		if issubclass(self.__class__, cls):
+			selfid = self.id #TODO: assert Identifiable
+		else:
+			selfid = self #TODO: assert valid id types
+
+		return filenamescheme(selfid)
+
+	def get(id=None, memid=None, uuid=None):
+		if id is None:
+			#TODO: pass cls as argument to work with inheritance
+			try: return cls.none # does the class provide a null-object?
+			except AttributeError: return None
+
+	cls.persistent_resource = persistent_resource
+	cls.get = staticmethod(get)
 
 ################################################################################
 
@@ -206,11 +266,27 @@ class Message(Layered, Persistent, Subscribable, object):
 	'''An instance of this class can be used as a manager where the underlying
 	object state is a dynamic context operated on or as one instance per state'''
 
+	# one to many relationships, not-null
+	#_source_context_ = {
+	#	'author'  : {'type': User,    'tags': ('static',)},
+	#	'channel' : {'type': Channel, 'tags': ('static',)}
+	#}
+
+	# one to one relationships
+	_props_ = {
+		'id'      : {'type': int, 'tags': ('static', 'id')},
+		'localid' : {'type': int, 'tags': ('static', 'id')},
+		'time'    : {'type': int, 'tags': ('static',)},
+		'content' : {'type': str, 'tags': ('main',)},
+		'history' : {'type': 'history'}
+	}
+
 	_properties_ = {
-		'id'      : {'type': int,  'tags': ('static', 'id')},
-		'author'  : {'type': User, 'tags': ('static',)},
-		'datetime': {'type': int,  'tags': ('static',)},
-		'content' : {'type': str,  'tags': ('main',)},
+		'id'      : {'type': int,     'tags': ('static', 'id')},
+		'channel' : {'type': Channel, 'tags': ('static',)},
+		'author'  : {'type': User,    'tags': ('static',)},
+		'datetime': {'type': int,     'tags': ('static',)},
+		'content' : {'type': str,     'tags': ('main',)},
 		'history' : {'type': 'history'}
 	}
 	persistent_storage = Sqlite3_adapter
@@ -224,6 +300,18 @@ class Message(Layered, Persistent, Subscribable, object):
 
 def dynamic_property(fcn):
 	return property(fcn)
+
+# same thing, using ClassFactory
+
+cf = ClassFactory('Message',
+	doc='''An instance of this class can be used as a manager where the underlying
+	object state is a dynamic context operated on or as one instance per state''',
+	mixins=[Layered, Persistent, Subscribable])
+cf.addProperty('id',   int)
+cf.addProperty('time', int)
+cf.addProperty('content', str) # content or value auto referenced by __str__?
+Message = cf.create()
+
 
 ################################################################################
 
