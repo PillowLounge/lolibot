@@ -3,6 +3,7 @@ import discord
 import sqlite3
 import shelve
 import logging
+import datetime
 from context import Context
 
 cmdprefix = "'"
@@ -166,21 +167,24 @@ async def isowner(msg, content):
 
 @handler
 async def accumulate(msg, content):
+    pass
 
 msgcontext = Context()
-@handler
-async def activity(msg, content):
-    if content != cmdprefix + 'activity': return
-    #TODO: concat string only when prefix is changed
-    counts = {key:value for (channel.id, [0,0,0]) in channels}
-    for m in messages.period(days=30) if m.author == msg.author:
-        c = counts[m.channel.id]
-        c[0] += 1
-        c[1] += wordcount(m.content)
-        c[2] += len(m.embeds)
-    totalcount = 0
-    for c in channels if counts[c.id][0] > 0:
-        totalcount += counts[c.id][0]
+# @handler
+# async def activity(msg, content):
+#     if content != cmdprefix + 'activity1': return
+#     #TODO: concat string only when prefix is changed
+#     counts = {key:value for (channel.id, [0,0,0]) in channels}
+#     for m in messages.period(days=30):
+#         if m.author != msg.author: continue
+#         c = counts[m.channel.id]
+#         c[0] += 1
+#         c[1] += wordcount(m.content)
+#         c[2] += len(m.embeds)
+#     totalcount = 0
+#     for c in channels:
+#         if counts[c.id][0] <= 0: continue
+#         totalcount += counts[c.id][0]
 
 #c = None
 
@@ -191,6 +195,17 @@ shelve_users     = shelve.open('users.pickle', protocol=4)
 def validate_streamlog(streamlog):
     index = streamlog['index']
 
+@handler
+async def activity2(msg, content):
+    if content != cmdprefix +"activity": return
+    count = 0
+    yours = 0
+    async for m in dc.logs_from(msg.channel, limit=5000,
+        after=datetime.datetime.now() - datetime.timedelta(days=1)):
+        count += 1
+        if msg.author == m.author: yours += 1
+    await dc.send_message(msg.channel, str(count) \
+    + " messages in the last 24h, "+ str(yours) + " of them yours.")
 
 def wordprmsg(msgs):
     length = len(msgs)
