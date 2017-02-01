@@ -2,19 +2,25 @@
 """
 	LOOPY loo.py
 
-loopy subclasses the local system's default asyncio loop class and permits
-one to issue exceptions from other threads that will be contained within the
-currently running task and the loop will continue executing other tasks even
-if unhandled.
+loopy subclasses the local system's default asyncio loop class and permits one
+to issue exceptions from other threads. TaskInterrupt type exceptions will abort
+the currently running task and the loop will continue executing other tasks.
 
 The class includes a diagnosis tool that spawns a separate thread to keep track
 of performance. If the loop does not complete a cycle in 3 seconds, it will
 interrupt the currently running task and continue to the next in order to ensure
-flow. A stacktrace will be printed.
+progression. A stacktrace will be printed.
 
-ISSUES: There is the possibility that the loop will switch tasks after spending
-3 seconds but before the interrupt is handled, causing the next task to catch
-the exception instead.
+ISSUES:
+1. There is the possibility that the loop will switch tasks after spending 3
+seconds but before the interrupt is handled, causing the next task to catch the
+exception instead.
+
+2. If there are any catch-all try/except blocks in the task coroutine call-stack
+when the TaskInterrupt is issued, it will be caught and its behavior prevented.
+
+3. If the thread running the loop is sleeping or suspended, python cannot raise
+exceptions.
 """
 ################################################################################
 
